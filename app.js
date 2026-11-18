@@ -12,7 +12,6 @@ const CDN = {
   zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
 };
 const label = k => ({ byn: 'B/N' })[k] || nice(k);
-const MODES = { sheet: 'Hojas', photo: 'Fotos' };
 
 const defProd = () => 'byn' in P.impresion ? 'byn' : Object.keys(P.impresion)[0];
 let P, mode = 'sheet', items = [], ring = 0, zone = '', uid = 0;
@@ -47,7 +46,7 @@ function buildOrder() {
 
 function summary() {
   const o = buildOrder();
-  const out = [`*Pedido — ${MODES[mode]}*`, ''];
+  const out = [];
   o.items.forEach(i => out.push(`• ${i.name}: ${i.lines[0].desc} — ${money(i.total)}`));
   if (o.extras.length) out.push('');
   o.extras.forEach(l => out.push(`${l.desc}: ${l.qty > 1 ? l.qty + ' × ' + money(l.unit) + ' = ' : ''}${money(l.qty * l.unit)}`));
