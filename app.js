@@ -9,12 +9,13 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 const CDN = {
   pdf: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
   pdfWorker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
-  zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+  zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+  jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const label = k => ({ byn: 'B/N' })[k] || nice(k);
 
 const defProd = () => 'byn' in P.impresion ? 'byn' : Object.keys(P.impresion)[0];
-let P, mode = 'sheet', items = [], ring = 0, zone = '', uid = 0;
+let P, mode = 'sheet', items = [], ring = 0, zone = '', uid = 0, client = { name: '', addr: '' };
 
 /* ---------- Modelo ---------- */
 // Cada línea {sku, desc, qty, unit} es el contrato con un futuro POS.
@@ -38,6 +39,7 @@ function buildOrder() {
   return {
     ts: new Date().toISOString(),
     tipo: mode,
+    cliente: { ...client },
     items: cur().map(it => ({ name: it.name, lines: lines(it), total: itemTotal(it) })),
     extras: extras(),
     total: total()
@@ -51,6 +53,8 @@ function summary() {
   if (o.extras.length) out.push('');
   o.extras.forEach(l => out.push(`${l.desc}: ${l.qty > 1 ? l.qty + ' × ' + money(l.unit) + ' = ' : ''}${money(l.qty * l.unit)}`));
   out.push('', `*Total: ${money(o.total)}*`);
+  const c = [client.name && 'Cliente: ' + client.name, client.addr && 'Entrega: ' + client.addr].filter(Boolean);
+  if (c.length) out.push('', ...c);
   return out.join('\n');
 }
 
@@ -160,9 +164,9 @@ $('#add').onclick = () => { newItem(); render(); };
 $('#pick').onclick = () => $('#files').click();
 $('#files').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
 $('#clear').onclick = () => {
-  if (!cur().length && !ring && !zone) return;
+  if (!cur().length && !ring && !zone && !client.name && !client.addr) return;
   if (!confirm('¿Limpiar la cotización?')) return;
-  items = items.filter(i => i.type !== mode); ring = 0; zone = '';
+  items = items.filter(i => i.type !== mode); ring = 0; zone = ''; client = { name: '', addr: '' }; cliTxt();
   $('#ring').value = ''; $('#zone').value = '';
   render();
 };
@@ -172,6 +176,81 @@ $('#copy').onclick = async () => {
   setTimeout(() => $('#copy').textContent = 'Copiar', 1200);
 };
 $('#wa').onclick = () => open('https://wa.me/?text=' + encodeURIComponent(summary()), '_blank');
+
+/* ---------- PDF ticket 58 mm ---------- */
+const MM = 0.3528;
+const logoData = () => new Promise(ok => {
+  const i = new Image();
+  i.onload = () => {
+    const k = Math.min(1, 400 / i.naturalWidth), c = document.createElement('canvas');
+    c.width = Math.round(i.naturalWidth * k); c.height = Math.round(i.naturalHeight * k);
+    c.getContext('2d').drawImage(i, 0, 0, c.width, c.height);
+    ok({ url: c.toDataURL('image/png'), w: c.width, h: c.height });
+  };
+  i.onerror = () => ok(null);
+  i.src = './logo.png';
+});
+
+// Dibuja el ticket y devuelve el alto usado (mm). Se llama 2 veces: medir y dibujar.
+function ticket(doc, logo, o) {
+  const W = 58, M = 3, CW = W - 2 * M;
+  let y = M;
+  const clean = t => String(t).replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
+  const font = (s, b) => { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(s); return s * MM * 1.3; };
+  const text = (t, { s = 8, b, c } = {}) => {
+    const lh = font(s, b);
+    doc.splitTextToSize(clean(t), CW).forEach(l => { y += lh; doc.text(l, c ? W / 2 : M, y, { align: c ? 'center' : 'left' }); });
+  };
+  const row = (l, r, { s = 8, b } = {}) => {
+    const lh = font(s, b); r = clean(r);
+    const rw = doc.getTextWidth(r);
+    doc.splitTextToSize(clean(l), CW - rw - 2).forEach((ln, i) => { y += lh; doc.text(ln, M, y); if (!i) doc.text(r, W - M, y, { align: 'right' }); });
+  };
+  const rule = () => { y += 1.5; doc.setLineWidth(0.2); doc.setLineDashPattern([0.7, 0.7], 0); doc.line(M, y, W - M, y); y += 0.5; };
+
+  if (logo) {
+    const k = Math.min(34 / logo.w, 22 / logo.h), w = logo.w * k, h = logo.h * k;
+    doc.addImage(logo.url, 'PNG', (W - w) / 2, y, w, h);
+    y += h + 1;
+  }
+  text(new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }), { s: 7, c: true });
+  rule();
+  o.items.forEach(i => { text(i.name, { b: true }); row(i.lines[0].desc, money(i.total), { s: 7.5 }); y += 1; });
+  rule();
+  o.extras.forEach(l => row(l.qty > 1 ? `${l.desc} x${l.qty}` : l.desc, money(l.qty * l.unit)));
+  if (o.extras.length) rule();
+  row('TOTAL', money(o.total), { s: 11, b: true });
+  const c = [o.cliente.name && 'Cliente: ' + o.cliente.name, o.cliente.addr && 'Entrega: ' + o.cliente.addr].filter(Boolean);
+  if (c.length) { rule(); c.forEach(t => text(t, { s: 8 })); }
+  return y + M;
+}
+
+async function exportPdf() {
+  if (!cur().length) return;
+  const b = $('#pdf'); b.disabled = true;
+  try {
+    await load(CDN.jspdf);
+    const { jsPDF } = window.jspdf, logo = await logoData(), o = buildOrder();
+    const mk = h => new jsPDF({ unit: 'mm', format: [58, h] });
+    const h = Math.max(60, Math.ceil(ticket(mk(3000), logo, o)));
+    const doc = mk(h); ticket(doc, logo, o);
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    doc.save(`cotizacion-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.pdf`);
+  } catch { alert('No se pudo generar el PDF (¿sin conexión?)'); }
+  b.disabled = false;
+}
+
+/* ---------- Cliente ---------- */
+const dlg = $('#dlg');
+const cliTxt = () => $('#cli').textContent = [client.name, client.addr].filter(Boolean).join(' · ') || '+ Cliente y entrega';
+$('#cli').onclick = () => { $('#cName').value = client.name; $('#cAddr').value = client.addr; dlg.returnValue = ''; dlg.showModal(); };
+$('#cCancel').onclick = () => dlg.close();
+dlg.onclose = () => {
+  if (dlg.returnValue !== 'ok') return;
+  client = { name: $('#cName').value.trim(), addr: $('#cAddr').value.trim() };
+  cliTxt();
+};
+$('#pdf').onclick = exportPdf;
 
 /* ---------- Init ---------- */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

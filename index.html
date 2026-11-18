@@ -27,9 +27,18 @@
   <label id="ringBox"><span id="ringTxt">Anillados</span><input id="ring" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></label>
   <label><span>Envío</span><select id="zone"></select></label>
 </div>
+<button id="cli">+ Cliente y entrega</button>
+<dialog id="dlg">
+  <form method="dialog">
+    <label><span>Cliente</span><input id="cName" autocomplete="name"></label>
+    <label><span>Dirección de entrega</span><input id="cAddr" autocomplete="street-address"></label>
+    <div class="row"><button type="button" id="cCancel">Cancelar</button><button class="p" value="ok">Guardar</button></div>
+  </form>
+</dialog>
 <div id="bar"><div>
   <span id="tot">$0</span>
   <button id="copy">Copiar</button>
+  <button id="pdf">PDF</button>
   <button id="wa" class="p">WhatsApp</button>
 </div></div>
 <script src="app.js"></script>

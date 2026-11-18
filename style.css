@@ -52,6 +52,13 @@ label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mut)}
 /* Barra inferior */
 #bar{position:fixed;left:0;right:0;bottom:0;height:calc(var(--bar) + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line);padding:1.2dvh 12px calc(1.2dvh + env(safe-area-inset-bottom))}
 #bar div{max-width:560px;height:100%;margin:auto;display:flex;gap:1.6vw;align-items:stretch}
-#bar button{min-height:0;padding:0 3.5vw;font-size:clamp(13px,3.6vw,16px);white-space:nowrap;flex:none}
+#bar button{min-height:0;padding:0 3vw;font-size:clamp(13px,3.6vw,16px);white-space:nowrap;flex:none}
 #tot{flex:1;min-width:0;align-self:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:clamp(18px,5.8vw,24px);font-weight:700}
 input[type=file]{display:none}
+
+/* Cliente */
+#cli{width:100%;margin-top:6px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+dialog{width:min(92vw,420px);margin:8dvh auto auto;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--fg)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog form{display:grid;gap:10px}
+dialog label{display:grid;gap:4px}
